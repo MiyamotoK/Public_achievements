@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ECS Setting(https://catalog.us-east-1.prod.workshops.aws/workshops/7ffc4ed9-d4b3-44dc-bade-676162b427cd/ja-JP)
+ 
+# Metadata:
+
+Parameters:
+  #SystemtName
+  SystemtName:
+    Type: String
+    Default: h4b
+
+  #セキュリティグループ
+  SecurityGroupIDs: 
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0fd8c88d6b96d6cec
+    
+  #サブネット
+  SubnetIDs:
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: 'subnet-078e7b627f7c9211b,subnet-010a99efddda1a4b5'
+
+  #ECSタスク定義イメージURL
+  TaskDefImageURL:
+    Type: String
+    Default: "533625637077.dkr.ecr.ap-northeast-1.amazonaws.com/h4b-ecs-helloworld:0.0.1"
+
+  #ターゲットグループARN
+  TargetGroupArn:
+    Type: String
+    Default: "arn:aws:elasticloadbalancing:ap-northeast-1:533625637077:targetgroup/z-mymt-h4b-ecs-targetgroup/6d3265a535afb691"
+
+  #ECSタスク定義にアタッチするIAMロール
+  TaskDefIAMRole:
+    Type: String
+    Default: "arn:aws:iam::533625637077:role/h4b-ecsTaskExecutionRole"
+
+  #AutoScaling targetにアタッチするIAMロール
+  AutoscalingIAMRole:
+    Type: String
+    Default: "arn:aws:iam::533625637077:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+# Mappings: 
+# Conditions:
+# Transform:
+
+Resources:
+  # ECS Clusterを作成
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${SystemtName}-ecs-cluster"
+
+  # ECS タスク定義を生成
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${SystemtName}-ecs-task-definition"
+      ExecutionRoleArn: !Ref TaskDefIAMRole
+      Cpu: "256"
+      Memory: 3GB
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      RuntimePlatform: 
+          CpuArchitecture: X86_64
+          OperatingSystemFamily: LINUX 
+      ContainerDefinitions:
+        - Name: "apache-helloworld"     
+          Image: !Ref TaskDefImageURL
+          PortMappings:
+            - HostPort: 80
+              Protocol: tcp
+              ContainerPort: 80
+
+  # ECS Serviceを作成
+  ECSService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      Cluster: !Sub "${SystemtName}-ecs-cluster"
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          #実行するタスクの数の基本値
+          Base: 0
+          #トリガー時に起動されるタスク数
+          Weight: 1
+      TaskDefinition: !Ref TaskDefinition
+      ServiceName: !Sub "${SystemtName}-ecs-service"
+      #スケジュール戦略
+      SchedulingStrategy: REPLICA  
+      #必要なタスク
+      DesiredCount: 2
+      LoadBalancers:
+        - ContainerName: apache-helloworld
+          ContainerPort: 80
+          TargetGroupArn: !Ref TargetGroupArn
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: 
+            - !Ref SecurityGroupIDs
+          Subnets: !Ref SubnetIDs
+      PlatformVersion: LATEST
+      DeploymentController:
+        Type: ECS
+
+  #AutoScaling targetを作成
+  AutoScalingTarget:
+    Type: 'AWS::ApplicationAutoScaling::ScalableTarget'
+    Properties:
+      MaxCapacity: '4'
+      MinCapacity: '1'
+      ResourceId: !Sub "service/${SystemtName}-ecs-cluster/${SystemtName}-ecs-service"
+      RoleARN: !Ref AutoscalingIAMRole
+      #ターゲットを識別(「ECSの必要なタスク数」を指定)
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ServiceNamespace: ecs
+    DependsOn:
+      - ECSService
+  
+  #スケーリングポリシーを作成
+  AutoScalingPolicy:
+    Type: 'AWS::ApplicationAutoScaling::ScalingPolicy'
+    Properties:
+      PolicyName: !Sub "${SystemtName}-ecs-autoscaling-policy"
+      PolicyType: TargetTrackingScaling
+      ResourceId: !Sub "service/${SystemtName}-ecs-cluster/${SystemtName}-ecs-service"
+      ScalingTargetId: !Ref AutoScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        DisableScaleIn: false
+        ScaleInCooldown: '300'
+        ScaleOutCooldown: '300'
+        TargetValue: '70'
+        #ECSサービスメトリクス設定
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+
+#Outputs:
+
+

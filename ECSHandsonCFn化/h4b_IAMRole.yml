@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  #SystemtName
+  SystemtName:
+    Type: String
+    Default: h4b
+
+Resources:
+  ECSTaskExecuteIAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub "${SystemtName}-ecsTaskExecutionRole"
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+  # マネコン上(IAM>ロール)に作成したロールを表示させる
+  InstanceProfile1:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${SystemtName}-ecsTaskExecutionRole"
+      Path: /
+      Roles:
+        - !Ref ECSTaskExecuteIAMRole

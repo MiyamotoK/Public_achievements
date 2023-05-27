@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ECR Setting(https://catalog.us-east-1.prod.workshops.aws/workshops/7ffc4ed9-d4b3-44dc-bade-676162b427cd/ja-JP)
+ 
+# Metadata:
+
+Parameters:
+  #SystemtName
+  SystemtName:
+    Type: String
+    Default: h4b
+
+# Mappings: 
+# Conditions:
+# Transform:
+
+Resources:
+  # ECR Repositoryを作成
+  testECRRepository:
+    Type: AWS::ECR::Repository
+    Properties: 
+       RepositoryName: !Sub "${SystemtName}-ecs-helloworld"
+
+# Outputs
