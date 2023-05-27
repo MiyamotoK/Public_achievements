@@ -1,0 +1,310 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ApplicationLayer
+ 
+# Metadata:
+
+Parameters:
+
+  #SystemName
+  SystemName:
+    Type: String
+    Default: Sample
+
+  #App用AMIID
+  AppAmiId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-XXXXXXXXXXX
+
+# Mappings: 
+# Conditions:
+# Transform:
+
+Resources:
+  #******************************************
+  #
+  #EC2インスタンス
+  #
+  #******************************************
+  #踏み台サーバ
+  BastionEc2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref AppAmiId                            # AMI ID参照
+      InstanceType: t3.micro                            # インスタンスタイプ指定
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "true"              # パブリックIPアドレスを割り当てる
+          DeviceIndex: "0"
+          SubnetId: !ImportValue PublicSubnet1aId       # サブネット指定
+          GroupSet:
+            - !ImportValue BastionScg                   # セキュリティグループを指定
+      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
+        - DeviceName: /dev/xvda                         # ルートデバイス名
+          Ebs:
+            VolumeSize: 8                               # ルートボリュームのサイズ指定
+            VolumeType: gp3                             # ボリュームタイプをgp3指定
+            Encrypted: "true"                           # ボリューム暗号化有効化
+      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
+      Monitoring: "false"                               # CloudWatch モニタリング無効化
+      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
+      Tags:
+          - Key: Name
+            Value: !Sub "${SystemName}-bastion-sv01a"
+
+  #踏み台サーバ用EIP作成
+  BastionEc2Eip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+          - Key: Name
+            Value: !Sub "${SystemName}-bastion-eip"
+
+  #踏み台サーバ用EIPアタッチ
+  BastionEc2EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt BastionEc2Eip.AllocationId
+      InstanceId: !Ref BastionEc2
+
+  #Appサーバ1
+  Ap1Ec2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref AppAmiId                            # AMI ID参照
+      InstanceType: t3.micro                            # インスタンスタイプ指定
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "false"             # パブリックIPアドレスを割り当てない
+          DeviceIndex: "0"
+          SubnetId: !ImportValue PrivateSubnetApp1aId   # サブネット指定
+          GroupSet:
+            - !ImportValue AppScg                  # セキュリティグループを指定
+      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
+        - DeviceName: /dev/xvda                         # ルートデバイス名
+          Ebs:
+            VolumeSize: 100                             # ルートボリュームのサイズ指定
+            VolumeType: gp3                             # ボリュームタイプをgp3指定
+            Encrypted: "true"                           # ボリューム暗号化有効化
+      #EbsOptimized: "true"                             # EBS最適化利用有効化
+      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
+      Monitoring: "true"                                # CloudWatch モニタリング有効化
+      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
+      Tags:
+          - Key: Name
+            Value: !Sub "${SystemName}-app-sv01a"
+
+  #Appサーバ2
+  Ap2Ec2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref AppAmiId                            # AMI ID参照
+      InstanceType: t3.micro                            # インスタンスタイプ指定
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "false"             # パブリックIPアドレスを割り当てない
+          DeviceIndex: "0"
+          SubnetId: !ImportValue PrivateSubnetApp1aId   # サブネット指定
+          GroupSet:
+            - !ImportValue AppScg                       # セキュリティグループを指定
+      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
+        - DeviceName: /dev/xvda                         # ルートデバイス名
+          Ebs:
+            VolumeSize: 100                             # ルートボリュームのサイズ指定
+            VolumeType: gp3                             # ボリュームタイプをgp3指定
+            Encrypted: "true"                           # ボリューム暗号化有効化
+      #EbsOptimized: "true"                             # EBS最適化利用有効化
+      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
+      Monitoring: "true"                                # CloudWatch モニタリング有効化
+      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
+      Tags:
+          - Key: Name
+            Value: !Sub "${SystemName}-app-sv02a"
+
+  # バックアップサーバ
+  BackupEc2: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: !Ref AppAmiId                            # AMI ID参照
+      InstanceType: t3.micro                            # インスタンスタイプ指定
+      NetworkInterfaces: 
+        - AssociatePublicIpAddress: "false"             # パブリックIPアドレス割り当てない
+          DeviceIndex: "0"
+          SubnetId: !ImportValue PrivateSubnetApp1aId   # サブネット指定
+          GroupSet:
+            - !ImportValue BackupScg                    # セキュリティグループ指定
+      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
+        - DeviceName: /dev/xvda                         # ルートデバイス名
+          Ebs:
+            VolumeSize: 400                             # ルートボリュームのサイズ指定
+            VolumeType: gp3                             # ボリュームタイプgp3に指定
+            Encrypted: "true"                           # ボリューム暗号化有効化
+      #EbsOptimized: "true"                             # EBS最適化利用有効化
+      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
+      Monitoring: "true"                                # CloudWatch モニタリング有効化
+      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-backup-sv01a" 
+
+  #******************************************
+  #
+  #キーペア作成
+  #
+  #******************************************
+  EC2KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: Sample-ec2-root-key
+      KeyType: ed25519
+
+  #******************************************
+  #
+  #ELB作成
+  #
+  #******************************************
+  # EC2用ALB作成
+  LoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: !Sub "${SystemName}-alb"
+      Type: "application"
+      Subnets: 
+        - !ImportValue PublicSubnet1aId
+        - !ImportValue PublicSubnet1cId
+      IpAddressType: "ipv4"
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-alb"
+
+  #******************************************
+  #
+  #リスナーターゲットグループ作成
+  #
+  #******************************************
+  ListenerTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: !Sub "${SystemName}-listener-tg"
+      VpcId: !ImportValue VpcId
+      Protocol: "HTTPS"
+      Port: 443
+      TargetType: "instance"
+      Tags:
+      -
+        Key: Name
+        Value: !Sub "${SystemName}-listener-tg"
+
+  ListenerTestTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: !Sub "${SystemName}-listener-test-tg"
+      VpcId: !ImportValue VpcId
+      Protocol: "HTTPS"
+      Port: 4431
+      TargetType: "instance"
+      Tags:
+      -
+        Key: Name
+        Value: !Sub "${SystemName}-listener-test-tg"
+
+
+  #******************************************
+  #
+  #パスルーティング先ターゲットグループ作成
+  #
+  #******************************************
+  #Sample
+  SampleTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: !Sub "${SystemName}-Sample-tg"
+      VpcId: !ImportValue VpcId
+      Protocol: "HTTP"
+      Port: 80
+      TargetType: "instance"
+      Targets:
+        - Id: !Ref Ap1Ec2
+        - Id: !Ref Ap2Ec2
+      Tags:
+      -
+        Key: Name
+        Value: !Sub "${SystemName}-Sample-tg"
+
+  SampleTestTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: !Sub "${SystemName}-Sample-test-tg"
+      VpcId: !ImportValue VpcId
+      Protocol: "HTTP"
+      Port: 8080
+      TargetType: "instance"
+      Targets:
+        - Id: !Ref Ap1Ec2
+        - Id: !Ref Ap2Ec2
+      Tags:
+      -
+        Key: Name
+        Value: !Sub "${SystemName}-Sample-test-tg"
+
+
+  #******************************************
+  #
+  #リスナー作成
+  #
+  #******************************************
+  ListenerResource1:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: "HTTPS"
+      DefaultActions: 
+        - TargetGroupArn: !Ref ListenerTargetGroup
+          Type: "forward"
+      Certificates:
+        - CertificateArn: !ImportValue Certificate
+
+  ListenerResource2:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 4431
+      Protocol: "HTTPS"
+      DefaultActions: 
+        - TargetGroupArn: !Ref ListenerTestTargetGroup
+          Type: "forward"
+      Certificates:
+        - CertificateArn: !ImportValue Certificate
+      
+
+
+  #******************************************
+  #
+  #パスルーティング先設定
+  #
+  #******************************************
+  SampleListenerRule1:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref SampleTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values: ['/Sample']
+      ListenerArn: !Ref ListenerResource1
+      Priority: 1
+
+  SampleListenerRule2:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref SampleTestTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values: ['/Sample']
+      ListenerArn: !Ref ListenerResource2
+      Priority: 2
+
+#Outputs:
+
+

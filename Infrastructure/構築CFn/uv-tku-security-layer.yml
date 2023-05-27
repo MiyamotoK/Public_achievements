@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: SecurityLayer
+ 
+# Metadata:
+
+Parameters:
+  #SystemName
+  SystemName:
+    Type: String
+    Default: Sample
+
+
+# Mappings: 
+# Conditions:
+# Transform:
+
+Resources:
+  #******************************************
+  #
+  #セキュリティグループ作成
+  #
+  #******************************************
+  #ALB用セキュリティグループ
+  AlbScg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${SystemName}-alb-scg"
+      GroupDescription: Allow SSH and HTTP access only MyIP
+      VpcId: !ImportValue VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 4431
+          ToPort: 4431
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-alb-scg"
+
+  #踏み台サーバ用セキュリティグループ
+  BastionScg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${SystemName}-bastion-scg"
+      GroupDescription: Allow SSH and HTTP access only MyIP
+      VpcId: !ImportValue VpcId
+      SecurityGroupIngress:
+        # ssh
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-bastion-scg"
+
+  #アプリケーション用セキュリティグループ
+  AppScg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${SystemName}-app-scg"
+      GroupDescription: Allow SSH and HTTP access only MyIP
+      VpcId: !ImportValue VpcId
+      SecurityGroupIngress:
+        # ALBのセキュリティグループ(ポート80~83)
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 83
+          SourceSecurityGroupId: !Ref AlbScg
+        # ALBのセキュリティグループ(ポート8080~8082)
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8082
+          SourceSecurityGroupId: !Ref AlbScg
+        # ALBのセキュリティグループ(ポート18081)
+        - IpProtocol: tcp
+          FromPort: 18081
+          ToPort: 18081
+          SourceSecurityGroupId: !Ref AlbScg
+        # 踏み台サーバのセキュリティグループ(ポート22)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionScg
+        # 踏み台サーバのセキュリティグループ(ポート4432)
+        - IpProtocol: tcp
+          FromPort: 4432
+          ToPort: 4432
+          SourceSecurityGroupId: !Ref BastionScg
+        # vpn
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-app-scg"
+
+  #アプリケーション用セキュリティグループ(循環依存関係解消)
+  #app-sgとbackup-sgの作成順序に依存関係があるため、backup-sgを作成後に追加でインバウンドルールをアタッチ
+  AppScgIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      # バックアップサーバのセキュリティグループ
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      GroupId: !GetAtt AppScg.GroupId
+      SourceSecurityGroupId: !Ref BackupScg
+    DependsOn: BackupScg
+
+  
+  #バックアップサーバ用セキュリティグループ
+  BackupScg:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: AppScg
+    Properties:
+      GroupName: !Sub "${SystemName}-backup-scg"
+      GroupDescription: Allow SSH and HTTP access only MyIP
+      VpcId: !ImportValue VpcId
+      SecurityGroupIngress:
+        #ftp
+        - IpProtocol: tcp
+          FromPort: 21
+          ToPort: 21
+          CidrIp: 0.0.0.0/0
+        # 踏み台サーバのセキュリティグループ
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionScg
+        # APサーバのセキュリティグループ(ポート22)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref AppScg
+        # vpn(ポート22)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 10.1.0.0/16
+        # APサーバのセキュリティグループ(ポート2049)
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref AppScg
+        # APサーバのセキュリティグループ(ポート8080~8081)
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8081
+          SourceSecurityGroupId: !Ref AppScg
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-backup-scg"
+
+  #Aurora用セキュリティグループ
+  AurolaScg:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn:
+      - AppScg
+      - BackupScg
+    Properties:
+      GroupName: !Sub "${SystemName}-aurora-scg"
+      GroupDescription: Allow SSH and HTTP access only MyIP
+      VpcId: !ImportValue VpcId
+      SecurityGroupIngress:
+        # APサーバのセキュリティグループ(ポート5430~5431)
+        - IpProtocol: tcp
+          FromPort: 5430
+          ToPort: 5431
+          SourceSecurityGroupId: !Ref AppScg
+        # 踏み台サーバのセキュリティグループ(ポート5430~5431)
+        - IpProtocol: tcp
+          FromPort: 5430
+          ToPort: 5431
+          SourceSecurityGroupId: !Ref BastionScg
+        # vpn(ポート5430~5431)
+        - IpProtocol: tcp
+          FromPort: 5430
+          ToPort: 5431
+          CidrIp: 10.1.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-aurora-scg"
+
+
+Outputs:
+  AlbScg:
+    Value: !Ref AlbScg
+    Export: 
+      Name: AlbScg
+
+  BastionScg:
+    Value: !Ref BastionScg
+    Export: 
+      Name: BastionScg
+
+  AppScg:
+    Value: !Ref AppScg
+    Export: 
+      Name: AppScg
+
+  BackupScg:
+    Value: !Ref BackupScg
+    Export: 
+      Name: BackupScg
+
+  AurolaScg:
+    Value: !Ref AurolaScg
+    Export: 
+      Name: AurolaScg
+

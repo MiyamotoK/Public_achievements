@@ -1,0 +1,372 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: NetworkLayer
+ 
+# Metadata:
+
+Parameters:
+  #SystemName
+  SystemName:
+    Type: String
+    Default: Sample
+
+  #VPCCidrBlock
+  VPCCidrBlock:
+    Type: String
+    Default: "10.2.0.0/16"
+
+  #CidrPublicSubnet1a
+  CidrPublicSubnet1a:
+    Type: String
+    Default: "10.2.10.0/24"
+
+  #CidrPrivateSubnetApp1a
+  CidrPrivateSubnetApp1a:
+    Type: String
+    Default: "10.2.110.0/24"
+
+  #CidrPrivateSubnetAurora1a
+  CidrPrivateSubnetAurora1a:
+    Type: String
+    Default: "10.2.111.0/24"
+
+  #CidrPublicSubnet1c
+  CidrPublicSubnet1c:
+    Type: String
+    Default: "10.2.20.0/24"
+
+  #CidrPrivateSubnetAurora1c
+  CidrPrivateSubnetAurora1c:
+    Type: String
+    Default: "10.2.120.0/24"
+
+
+# Mappings: 
+# Conditions:
+# Transform:
+
+Resources:
+
+  #******************************************
+  #
+  #VPC
+  #
+  #******************************************
+  # VPCを作成
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties: 
+      CidrBlock: !Ref VPCCidrBlock
+      EnableDnsHostnames: "True"
+      EnableDnsSupport: "True"
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-vpc"
+
+  #******************************************
+  #
+  #インターネットゲートウェイ
+  #
+  #******************************************
+  # igwを作成
+  InternetGateway: 
+    Type: "AWS::EC2::InternetGateway"
+    Properties: 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-igw"
+
+  # igwをアタッチ
+  InternetGatewayAttachment: 
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties: 
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC 
+
+  #******************************************
+  #
+  #サブネット
+  #
+  #******************************************
+  # PublicSubnet-1a
+  PublicSubnet1a: 
+    Type: "AWS::EC2::Subnet"
+    Properties: 
+      AvailabilityZone: "ap-northeast-1a"
+      CidrBlock: !Ref CidrPublicSubnet1a
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-public-subnet-1a"
+
+  # PrivateSubnet-app-1a
+  PrivateSubnetApp1a: 
+    Type: "AWS::EC2::Subnet"
+    Properties: 
+      AvailabilityZone: "ap-northeast-1a"
+      CidrBlock: !Ref CidrPrivateSubnetApp1a
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-private-subnet-app-1a"
+
+
+  # PrivateSubnet-Aurora-1a
+  PrivateSubnetAurora1a: 
+    Type: "AWS::EC2::Subnet"
+    Properties: 
+      AvailabilityZone: "ap-northeast-1a"
+      CidrBlock: !Ref CidrPrivateSubnetAurora1a
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-private-subnet-aurora-1a"
+
+  # PublicSubnet-1c
+  PublicSubnet1c: 
+    Type: "AWS::EC2::Subnet"
+    Properties: 
+      AvailabilityZone: "ap-northeast-1c"
+      CidrBlock: !Ref CidrPublicSubnet1c
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-public-subnet-1c"
+  
+  # PrivateSubnet-Aurora-1c
+  PrivateSubnetAurora1c: 
+    Type: "AWS::EC2::Subnet"
+    Properties: 
+      AvailabilityZone: "ap-northeast-1c"
+      CidrBlock: !Ref CidrPrivateSubnetAurora1c
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-private-subnet-aurora-1c"
+
+  #******************************************
+  #
+  #ルートテーブル作成
+  #
+  #******************************************
+  # IGWルートテーブル作成
+  IGWRouteTable: 
+    Type: "AWS::EC2::RouteTable"
+    Properties: 
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-public-route-table"
+  
+  # NGW,VGWルートテーブル作成
+  NGWVGWRouteTable: 
+    Type: "AWS::EC2::RouteTable"
+    Properties: 
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-app-route-table"
+  
+  #VPC内リソース限定ルートテーブル
+  VPCResouceRouteTable: 
+    Type: "AWS::EC2::RouteTable"
+    Properties: 
+      VpcId: !Ref VPC 
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-private-aurora-route-table"
+
+  #******************************************
+  #
+  #ルートテーブルの送信先及びターゲット設定
+  #
+  #******************************************
+  # IGWへのルート定義
+  IGWRoute: 
+    Type: "AWS::EC2::Route"
+    Properties: 
+      RouteTableId: !Ref IGWRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway 
+
+  # NAT GATEWAYへのルート定義
+  NGWRoute: 
+    Type: "AWS::EC2::Route"
+    Properties: 
+      RouteTableId: !Ref NGWVGWRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      NatGatewayId: !Ref Natgateway
+
+  # NAT GATEWAYを作成
+  Natgateway:
+    Type: AWS::EC2::NatGateway
+    Properties: 
+      AllocationId: !GetAtt NGWElasticIP.AllocationId 
+      SubnetId: !Ref PublicSubnet1a
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-ngw"
+
+  #******************************************
+  #
+  #ルートテーブルをサブネットに関連付ける
+  #
+  #******************************************
+  #ルートテーブルをサブネットに関連付ける(Public)
+  PublicSubnet1aRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref IGWRouteTable
+      SubnetId: !Ref PublicSubnet1a
+
+  PublicSubnet1cRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref IGWRouteTable
+      SubnetId: !Ref PublicSubnet1c
+
+  #ルートテーブルをサブネットに関連付ける(nat)
+  NGWRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref NGWVGWRouteTable
+      SubnetId: !Ref PrivateSubnetApp1a
+
+  #ルートテーブルをサブネットに関連付ける(Private)
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCResouceRouteTable
+      SubnetId: !Ref PrivateSubnetAurora1a
+
+  PrivateSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCResouceRouteTable
+      SubnetId: !Ref PrivateSubnetAurora1c
+
+
+  #******************************************
+  #
+  #ElasticIP設定
+  #
+  #******************************************
+  #NGW用EIP作成
+  NGWElasticIP:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: vpc
+      Tags: 
+        - Key: Name
+          Value: !Sub "${SystemName}-ngw-eip"
+
+  #******************************************
+  #
+  #仮想プライベートゲートウェイ設定
+  #
+  #******************************************
+  #VGW作成
+  VirtualPrivateGateway:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-vgw"
+
+  #VGWへのルート定義
+  VGWRoute: 
+    Type: "AWS::EC2::Route"
+    Properties: 
+      RouteTableId: !Ref NGWVGWRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref VirtualPrivateGateway
+    DependsOn: VPCAttachment
+
+  #VPCにアタッチ
+  VPCAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      VpnGatewayId: !Ref VirtualPrivateGateway
+    
+
+
+  #******************************************
+  #
+  #カスタマーゲートウェイ設定
+  #
+  #******************************************
+  #CGW作成
+  CustomerGateway:
+    Type: AWS::EC2::CustomerGateway
+    Properties:
+      BgpAsn: 65000
+      IpAddress: 0.0.0.0 #<Public IP Address>
+      Type: ipsec.1
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-cgw"
+
+
+  #******************************************
+  #
+  #Site-to-SiteVPN構築
+  #トンネルVPNログの設定は手動で行う
+  #
+  #******************************************
+  #Site-to-SiteVPN
+  VPNConnection:
+    Type: AWS::EC2::VPNConnection
+    Properties:
+      CustomerGatewayId: !Ref CustomerGateway
+      Type: ipsec.1
+      VpnGatewayId: !Ref VirtualPrivateGateway
+      StaticRoutesOnly: "false"
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-vpnconnection"
+
+Outputs:
+
+  # VPC
+  VpcId: 
+    Value: !Ref VPC
+    Export: 
+      Name: VpcId
+
+  # パブリック1aサブネット
+  PublicSubnet1aId:
+    Value: !Ref PublicSubnet1a
+    Export: 
+      Name: PublicSubnet1aId
+
+  # パブリック1cサブネット
+  PublicSubnet1cId:
+    Value: !Ref PublicSubnet1c
+    Export: 
+      Name: PublicSubnet1cId
+  
+  # EC2配置用サブネット
+  PrivateSubnetApp1aId: 
+    Value: !Ref PrivateSubnetApp1a
+    Export: 
+      Name: PrivateSubnetApp1aId
+  
+  # Aurora1c用サブネット
+  PrivateSubnetAurora1cId:
+    Value: !Ref PrivateSubnetAurora1c
+    Export: 
+      Name: PrivateSubnetAurora1cId
+
+  # Aurora1a用サブネット
+  PrivateSubnetAurora1aId:
+    Value: !Ref PrivateSubnetAurora1a
+    Export: 
+      Name: PrivateSubnetAurora1aId
+
+  # 踏み台サーバ用EIP
+  # BastionElasticIP:
+  #   Value: !Ref BastionElasticIP
+  #   Export: 
+  #     Name: BastionElasticIP
+      

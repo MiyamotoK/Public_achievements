@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+
+  #SystemName
+  SystemName:
+    Type: String
+    Default: Sample
+
+  #マスターユーザ名
+  Username:
+    Type: String
+    Default: postgres
+
+  #パスワードをSSMから取得
+  Password:
+    Type: AWS::SSM::Parameter::Value<String>
+    NoEcho: true
+    Default: /app/rds/master-password
+
+Resources:
+  #******************************************
+  #
+  #クラスター作成
+  #
+  #******************************************
+  RDSCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: !Ref Username
+      MasterUserPassword: !Ref Password
+      Engine: aurora-postgresql
+      EngineVersion: "14.5"
+      VpcSecurityGroupIds:                                                    #セキュリティグループ
+        - !ImportValue AurolaScg
+      BackupRetentionPeriod: "7"                                              #バックアップ保持期間
+      DBClusterIdentifier: !Sub "${SystemName}-test-aurora-cluster"           #クラスター名
+      DeletionProtection: false                                                #削除保護
+      EngineMode: provisioned
+      StorageEncrypted: true                                                  #ストレージ暗号化
+      Port: 5431                                                              #ポート番号
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-test-aurora-cluster"
+      DBSubnetGroupName: !Ref DBSubnetGroup
+
+
+  # DB subnet group作成
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub "${SystemName}-test-aurora-subnet-group"
+      DBSubnetGroupDescription: !Sub "${SystemName}-test-aurora-subnet-group"
+      SubnetIds:
+        - !ImportValue PrivateSubnetAurora1aId
+        - !ImportValue PrivateSubnetAurora1cId
+      Tags:
+      - Key: Name
+        Value: !Sub "${SystemName}-test-aurora-subnet-group"
+
+  #******************************************
+  #
+  #ライターインスタンス作成
+  #
+  #******************************************
+  RDSDBInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBClusterIdentifier: !Ref RDSCluster
+      DBInstanceIdentifier: !Sub "${SystemName}-test-aurora-instance-1a"
+      PubliclyAccessible: 'false'                                               #パブリックアクセス
+      AvailabilityZone: "ap-northeast-1a"                                       #AZ
+      DBParameterGroupName: default.aurora-postgresql14                         #パラメータグループ
+      Engine: aurora-postgresql                                                 #DBエンジン
+      EngineVersion: "14.5"                                                     #エンジンバージョン
+      DBInstanceClass: db.t3.medium                                             #インスタンスタイプ
+      AutoMinorVersionUpgrade: true                                             #マイナーバージョン自動アップグレード有効化
+      CopyTagsToSnapshot: true                                                  #スナップショットにタグをコピー
+      EnablePerformanceInsights: true                                           #Performance Insights をオンにする
+      #MonitoringInterval: 60                                                    #拡張モニタリングの詳細度
+      #MonitoringRoleArn: "arn:aws:iam::XXXXXXXXXXx:role/z-mymt-MonitoringRole" #モニタリングロール
+      Tags:
+        - Key: Name
+          Value: !Sub "${SystemName}-test-aurora-instance-1a"
+

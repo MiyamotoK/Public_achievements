@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+    #******************************************
+    #
+    #ACM作成
+    #
+    #******************************************
+    Certificate:
+        Type: AWS::CertificateManager::Certificate
+        Properties:
+            DomainName: "*.demo.co.jp"
+            ValidationMethod: DNS
+Outputs:
+    # ACM
+    Certificate:
+        Value: !Ref Certificate
+        Export:
+            Name: Certificate

@@ -1,0 +1,23 @@
+ELBのアクセスログをCloudWatch Logsにインポートし、レイテンシーのメトリクス化を行います。
+
+1.S3からログデータをダウンロードします:
+s3_bucketとs3_keyを使用して、指定されたS3バケットからログデータをダウンロードします。
+
+2.ログデータの展開と処理:
+ダウンロードしたログデータはgzip形式であるため、gzipモジュールを使用して展開します。
+ログデータは1行ずつ処理され、各行はJSON形式として解析されます。
+log_entry内のhttp_requestキーを参照し、request_processing_timeの値を抽出してlatencyという変数に格納します。
+log_eventsリストにログイベントを作成し追加します。
+latency_metricsリストにレイテンシーの値を追加します。
+
+3.CloudWatch Logsへの書き込み:
+cw_logs_clientを使用して、CloudWatch Logsのロググループとログストリームを作成します。
+log_eventsを使用してログイベントをCloudWatch Logsに書き込みます。
+
+4.レイテンシーのメトリクス化と送信:
+cloudwatch_clientを使用して、カスタムメトリクスを作成し、レイテンシーの平均値を計算します。
+put_metric_dataメソッドを使用して、レイテンシーメトリクスをCloudWatchに送信します。
+
+5.レスポンスの出力:
+最後に、関数の実行結果であるレスポンスをログに出力します。
+
