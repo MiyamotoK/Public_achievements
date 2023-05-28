@@ -1,0 +1,75 @@
+EC2のステータス変化のイベントをキャッチして特定のLambda関数を実行する
+
+CloudWatch Eventsルールの作成: EC2のステータス変化をトリガーとするCloudWatch Eventsルールを作成
+
+AWS Management Consoleを使用する場合：
+AWS Management Consoleにアクセスし、CloudWatchサービスに移動
+左側のメニューから「Rules」（ルール）を選択し、「Create rule」（ルールの作成）をクリック
+「Event Source」（イベントソース）として「Event Pattern」（イベントパターン）を選択
+「Service Name」（サービス名）として「EC2」を選択し、イベントパターンを設定
+例:EC2インスタンスのステータス変化をトリガーとする場合(json)
+{
+  "source": ["aws.ec2"],
+  "detail-type": ["EC2 Instance State-change Notification"],
+  "detail": {
+    "state": ["running", "stopped"]
+  }
+}
+
+「Targets」（ターゲット）として「Lambda function」（Lambda関数）を選択し、実行したいLambda関数を指定
+必要な設定を行った後、ルールの名前を入力し、「Create rule」（ルールの作成）をクリックしてルールを作成
+
+
+AWS CLIを使用する場合：
+aws events put-rule --name my-ec2-status-change-rule --event-pattern '{
+  "source": ["aws.ec2"],
+  "detail-type": ["EC2 Instance State-change Notification"],
+  "detail": {
+    "state": ["running", "stopped"]
+  }
+}'
+aws events put-targets --rule my-ec2-status-change-rule --targets '[{
+  "Arn": "arn:aws:lambda:<AWS_Region>:<AWS_Account_ID>:function:my-lambda-function",
+  "Id": "my-target-id"
+}]'
+
+
+Lambda関数の作成: EC2のステータス変化を処理するためのLambda関数を作成この関数はCloudWatch Eventsルールによってトリガーされ、EC2のステータス変化に応じた処理を実行
+
+AWS Management Consoleを使用する場合：
+AWS Management Consoleにアクセスし、Lambdaサービスに移動
+左側のメニューから「Functions」（関数）を選択し、「Create function」
+
+Lambda関数を作成する手順は以下の通りです。
+
+Lambda関数の作成: AWS Management Consoleを使用してLambda関数を作成
+
+AWS Management Consoleにアクセスし、Lambdaサービスに移動
+左側のメニューから「Functions」（関数）を選択し、「Create function」（関数の作成）をクリック
+「Function name」（関数名）を入力例えば、「my-ec2-status-change-function」といった名前を指定
+「Runtime」（実行環境）として適切なランタイムを選択Lambda関数を使用してEC2のステータス変化を処理する場合は、PythonやNode.jsなどの適切なランタイムを選択
+「Permissions」（アクセス権限）セクションで、適切な実行ロールを選択Lambda関数がEC2のステータス変化を処理するために必要な権限を持つロールを作成するか、既存のロールを選択
+「Create function」（関数の作成）をクリックしてLambda関数を作成
+Lambda関数のコードの実装: Lambda関数のコードを実装EC2のステータス変化に応じた処理を記述例えば、ステータスが「running」に変化した場合に特定の処理を実行する場合、以下のようなPythonコードをLambda関数に追加
+
+import json
+
+def lambda_handler(event, context):
+    # イベントデータからEC2のステータス変化を取得
+    status = event['detail']['state']
+
+    # ステータスが"running"の場合に処理を実行
+    if status == "running":
+        # 実行したい処理を記述
+        print("EC2 instance is running")
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Lambda function executed successfully')
+    }
+
+トリガーの追加: Lambda関数をCloudWatch Eventsルールにトリガーとして追加
+Lambda関数の詳細ページに移動し、「Add trigger」（トリガーの追加）をクリック
+トリガーのタイプとして「CloudWatch Events」を選択
+既存のCloudWatch Eventsルールを選択するか、新しいルールを作成
+必要な設定を行った後、「Add」（追加）をクリックしてトリガーを追加
