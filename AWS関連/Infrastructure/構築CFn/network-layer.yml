@@ -110,39 +110,6 @@ Resources:
           Value: !Sub "${SystemName}-private-subnet-app-1a"
 
 
-  # PrivateSubnet-Aurora-1a
-  PrivateSubnetAurora1a: 
-    Type: "AWS::EC2::Subnet"
-    Properties: 
-      AvailabilityZone: "ap-northeast-1a"
-      CidrBlock: !Ref CidrPrivateSubnetAurora1a
-      VpcId: !Ref VPC 
-      Tags: 
-        - Key: Name
-          Value: !Sub "${SystemName}-private-subnet-aurora-1a"
-
-  # PublicSubnet-1c
-  PublicSubnet1c: 
-    Type: "AWS::EC2::Subnet"
-    Properties: 
-      AvailabilityZone: "ap-northeast-1c"
-      CidrBlock: !Ref CidrPublicSubnet1c
-      VpcId: !Ref VPC 
-      Tags: 
-        - Key: Name
-          Value: !Sub "${SystemName}-public-subnet-1c"
-  
-  # PrivateSubnet-Aurora-1c
-  PrivateSubnetAurora1c: 
-    Type: "AWS::EC2::Subnet"
-    Properties: 
-      AvailabilityZone: "ap-northeast-1c"
-      CidrBlock: !Ref CidrPrivateSubnetAurora1c
-      VpcId: !Ref VPC 
-      Tags: 
-        - Key: Name
-          Value: !Sub "${SystemName}-private-subnet-aurora-1c"
-
   #******************************************
   #
   #ルートテーブル作成
@@ -218,31 +185,12 @@ Resources:
       RouteTableId: !Ref IGWRouteTable
       SubnetId: !Ref PublicSubnet1a
 
-  PublicSubnet1cRouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref IGWRouteTable
-      SubnetId: !Ref PublicSubnet1c
-
   #ルートテーブルをサブネットに関連付ける(nat)
   NGWRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref NGWVGWRouteTable
       SubnetId: !Ref PrivateSubnetApp1a
-
-  #ルートテーブルをサブネットに関連付ける(Private)
-  PrivateSubnetRouteTableAssociation2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref VPCResouceRouteTable
-      SubnetId: !Ref PrivateSubnetAurora1a
-
-  PrivateSubnetRouteTableAssociation3:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref VPCResouceRouteTable
-      SubnetId: !Ref PrivateSubnetAurora1c
 
 
   #******************************************
@@ -340,33 +288,9 @@ Outputs:
     Export: 
       Name: PublicSubnet1aId
 
-  # パブリック1cサブネット
-  PublicSubnet1cId:
-    Value: !Ref PublicSubnet1c
-    Export: 
-      Name: PublicSubnet1cId
-  
   # EC2配置用サブネット
   PrivateSubnetApp1aId: 
     Value: !Ref PrivateSubnetApp1a
     Export: 
       Name: PrivateSubnetApp1aId
   
-  # Aurora1c用サブネット
-  PrivateSubnetAurora1cId:
-    Value: !Ref PrivateSubnetAurora1c
-    Export: 
-      Name: PrivateSubnetAurora1cId
-
-  # Aurora1a用サブネット
-  PrivateSubnetAurora1aId:
-    Value: !Ref PrivateSubnetAurora1a
-    Export: 
-      Name: PrivateSubnetAurora1aId
-
-  # 踏み台サーバ用EIP
-  # BastionElasticIP:
-  #   Value: !Ref BastionElasticIP
-  #   Export: 
-  #     Name: BastionElasticIP
-      

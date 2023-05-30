@@ -92,58 +92,6 @@ Resources:
           - Key: Name
             Value: !Sub "${SystemName}-app-sv01a"
 
-  #Appサーバ2
-  Ap2Ec2: 
-    Type: AWS::EC2::Instance
-    Properties: 
-      ImageId: !Ref AppAmiId                            # AMI ID参照
-      InstanceType: t3.micro                            # インスタンスタイプ指定
-      NetworkInterfaces: 
-        - AssociatePublicIpAddress: "false"             # パブリックIPアドレスを割り当てない
-          DeviceIndex: "0"
-          SubnetId: !ImportValue PrivateSubnetApp1aId   # サブネット指定
-          GroupSet:
-            - !ImportValue AppScg                       # セキュリティグループを指定
-      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
-        - DeviceName: /dev/xvda                         # ルートデバイス名
-          Ebs:
-            VolumeSize: 100                             # ルートボリュームのサイズ指定
-            VolumeType: gp3                             # ボリュームタイプをgp3指定
-            Encrypted: "true"                           # ボリューム暗号化有効化
-      #EbsOptimized: "true"                             # EBS最適化利用有効化
-      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
-      Monitoring: "true"                                # CloudWatch モニタリング有効化
-      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
-      Tags:
-          - Key: Name
-            Value: !Sub "${SystemName}-app-sv02a"
-
-  # バックアップサーバ
-  BackupEc2: 
-    Type: AWS::EC2::Instance
-    Properties: 
-      ImageId: !Ref AppAmiId                            # AMI ID参照
-      InstanceType: t3.micro                            # インスタンスタイプ指定
-      NetworkInterfaces: 
-        - AssociatePublicIpAddress: "false"             # パブリックIPアドレス割り当てない
-          DeviceIndex: "0"
-          SubnetId: !ImportValue PrivateSubnetApp1aId   # サブネット指定
-          GroupSet:
-            - !ImportValue BackupScg                    # セキュリティグループ指定
-      BlockDeviceMappings:                              # ブロックデバイスマッピング設定
-        - DeviceName: /dev/xvda                         # ルートデバイス名
-          Ebs:
-            VolumeSize: 400                             # ルートボリュームのサイズ指定
-            VolumeType: gp3                             # ボリュームタイプgp3に指定
-            Encrypted: "true"                           # ボリューム暗号化有効化
-      #EbsOptimized: "true"                             # EBS最適化利用有効化
-      DisableApiTermination: "true"                     # インスタンスの終了保護有効化
-      Monitoring: "true"                                # CloudWatch モニタリング有効化
-      KeyName: !Ref EC2KeyPair                          # インスタンス接続用のキーペア指定
-      Tags:
-        - Key: Name
-          Value: !Sub "${SystemName}-backup-sv01a" 
-
   #******************************************
   #
   #キーペア作成
